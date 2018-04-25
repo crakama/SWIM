@@ -31,7 +31,9 @@ public class CroupierJoin implements CroupierMsg.OneWay {
   public CroupierJoin(Set<NatedAddress> peers) {
     this.peers = peers;
   }
-
+  public Set<NatedAddress> getPeers(){
+      return peers;
+  }
   @Override
   public String toString() {
     return "JOIN";

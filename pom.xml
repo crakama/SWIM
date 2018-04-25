@@ -13,7 +13,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <kompics.version>1.0.0</kompics.version>
-        <java.version>1.7</java.version>
+        <java.version>1.8</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
     </properties>
@@ -57,7 +57,7 @@
             <version>1.2</version>
         </dependency>
     </dependencies>
-    
+
     <repositories>
 		<repository>
 			<id>sics-release</id>
@@ -84,3 +84,4 @@
    </repositories>
 	
 </project>
+

@@ -19,8 +19,12 @@
 
 package se.kth.swim.msg;
 
+import se.sics.kompics.KompicsEvent;
+
 /**
  * @author Alex Ormenisan <aaor@sics.se>
  */
-public class Ping {
+public class Ping implements KompicsEvent {
+
+    public Ping(){ }
 }

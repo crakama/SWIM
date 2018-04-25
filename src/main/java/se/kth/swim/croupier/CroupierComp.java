@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
+
+//import com.sun.xml.internal.bind.v2.TODO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import se.kth.swim.croupier.internal.CroupierContainer;
@@ -35,6 +37,7 @@ import se.kth.swim.croupier.msg.CroupierJoin;
 import se.kth.swim.croupier.msg.CroupierSample;
 import se.kth.swim.croupier.msg.CroupierUpdate;
 import se.kth.swim.croupier.util.OverlayHeaderImpl;
+import se.kth.swim.msg.PingPongPort;
 import se.kth.swim.nat.NatedAddress;
 import se.kth.swim.network.impl.BasicContentMsg;
 import se.kth.swim.network.impl.BasicHeader;
@@ -62,7 +65,6 @@ import se.sics.kompics.timer.Timer;
 public class CroupierComp extends ComponentDefinition {
 
   private final static Logger log = LoggerFactory.getLogger(CroupierComp.class);
-
   Negative<CroupierControlPort> croupierControlPort = negative(CroupierControlPort.class);
   Negative<CroupierPort> croupierPort = negative(CroupierPort.class);
   Positive<Network> network = requires(Network.class);
@@ -116,6 +118,8 @@ public class CroupierComp extends ComponentDefinition {
       log.info("{} starting...", logPrefix);
       selfView = new Object();
       startShuffle();
+        //TODO figure out the type of port to be used for going out event[CroupierJoin]
+      //trigger(new CroupierJoin( bootstrapNodes.stream().collect(Collectors.toSet())),croupierControlPort);
     }
 
   };
