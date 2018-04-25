@@ -80,7 +80,6 @@ public class HostComp extends ComponentDefinition {
         public void handle(Start event) {
             log.info("{} starting...", new Object[]{selfAddress});
         }
-
     };
     private Handler<Stop> handleStop = new Handler<Stop>() {
 
