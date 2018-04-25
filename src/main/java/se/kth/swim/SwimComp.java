@@ -23,6 +23,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import se.kth.swim.msg.net.NetGossip;
 import se.kth.swim.msg.net.NetPing;
 import se.kth.swim.msg.net.NetPong;
 import se.kth.swim.nat.NatedAddress;
@@ -32,7 +33,6 @@ import se.sics.kompics.Init;
 import se.sics.kompics.Positive;
 import se.sics.kompics.Start;
 import se.sics.kompics.Stop;
-import se.sics.kompics.network.Address;
 import se.sics.kompics.network.Network;
 import se.sics.kompics.timer.CancelTimeout;
 import se.sics.kompics.timer.SchedulePeriodicTimeout;
@@ -50,7 +50,8 @@ public class SwimComp extends ComponentDefinition {
 
     private final NatedAddress selfAddress;
     private final List<NatedAddress> bootstrapNodes;
-    private TreeMap<Integer, Address> localState = new TreeMap<>();
+    //private TreeMap<Integer, Address> localState = new TreeMap<>();
+    private List<NatedAddress> localState = new ArrayList<>() ;
 
     private UUID pingTimeoutId;
 
@@ -64,6 +65,8 @@ public class SwimComp extends ComponentDefinition {
         subscribe(handleStart, control);
         subscribe(handleStop, control);
         subscribe(handlePing, network);
+        subscribe(pongHandler, network);
+        subscribe(gossipHandler, network);
         subscribe(handlePingTimeout, timer);
     }
 
@@ -98,19 +101,47 @@ public class SwimComp extends ComponentDefinition {
             NatedAddress newlyJoinedPeer = event.getHeader().getSource();
             log.info("{} received ping from:{}", new Object[]{selfAddress.getId(),newlyJoinedPeer});
             receivedPings++;
-            //TODO: select subset of nodes to be provided by bootstrap server and send pong with info about new peer that has sent a ping & my local state.
-
+            //TODO: Send my local state to newly joined peer
             updateLocalState(newlyJoinedPeer.getId(),newlyJoinedPeer);
-
-            trigger(new NetPong(selfAddress,newlyJoinedPeer), network);
-            log.info("Peer {} has sent a PONG to peer :{}", new Object[]{selfAddress, newlyJoinedPeer});
+            startGossip(newlyJoinedPeer);
         }
-
     };
+
+    //TODO Schedule Pong and gossip events
+    private Handler<NetPong> pongHandler = new Handler<NetPong>() {
+        @Override
+        public void handle(NetPong netPong) {
+            log.info("Peer {} received PONG from:{}", new Object[]{selfAddress.getId(),netPong.getSource()});
+        }
+    };
+
+    private Handler<NetGossip> gossipHandler = new Handler<NetGossip>() {
+        @Override
+        public void handle(NetGossip netGossip) {
+            log.info("Peer {} received Gossip from:{}", new Object[]{selfAddress.getId(),netGossip.getSource()});
+        }
+    };
+
+    //Send to newly joined node and one old node.
+    private void startGossip(NatedAddress newlyJoinedPeer) {
+        List<NatedAddress> randomPeers;
+        trigger(new NetPong(selfAddress,newlyJoinedPeer), network);
+        if(localState.stream().count() < 3){
+            randomPeers  = selectPeers(localState, 1);
+        }else {
+            randomPeers = selectPeers(localState, 3);
+        }
+        log.info("Peer {} Has Randomly Selected Peers :{} for Gossip", new Object[]{selfAddress.getId(), randomPeers});
+        for (NatedAddress randomPeer : randomPeers) {
+            if(newlyJoinedPeer.getId() !=  randomPeer.getId()){
+                trigger(new NetGossip(selfAddress, randomPeer), network);
+            }
+        }
+    }
 
     private void updateLocalState(Integer peerID, NatedAddress newlyJoinedPeer) {
         log.info("Peer {} received PING from newly joined Peer :{} of ID:{}", new Object[]{selfAddress, newlyJoinedPeer,peerID});
-        //localState.put(peerID,newlyJoinedPeer);
+        this.localState.add(newlyJoinedPeer);
     }
 
     public static <NateAddress> List<NateAddress> selectRandomPeers(List<NateAddress> list, int n, Random r) {
