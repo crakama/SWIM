@@ -102,18 +102,15 @@ public class SwimComp extends ComponentDefinition {
 
             updateLocalState(newlyJoinedPeer.getId(),newlyJoinedPeer);
 
-            List<NatedAddress> randomPeers = selectPeers(bootstrapNodes,2);
-            for(NatedAddress peer : randomPeers){
-                trigger(new NetPong(selfAddress,peer), network);
-                log.info("Peer {} has sent a PONG to peer :{}", new Object[]{selfAddress, peer});
-            }
+            trigger(new NetPong(selfAddress,newlyJoinedPeer), network);
+            log.info("Peer {} has sent a PONG to peer :{}", new Object[]{selfAddress, newlyJoinedPeer});
         }
 
     };
 
     private void updateLocalState(Integer peerID, NatedAddress newlyJoinedPeer) {
         log.info("Peer {} received PING from newly joined Peer :{} of ID:{}", new Object[]{selfAddress, newlyJoinedPeer,peerID});
-        localState.put(peerID,newlyJoinedPeer);
+        //localState.put(peerID,newlyJoinedPeer);
     }
 
     public static <NateAddress> List<NateAddress> selectRandomPeers(List<NateAddress> list, int n, Random r) {
@@ -141,9 +138,10 @@ public class SwimComp extends ComponentDefinition {
 
         @Override
         public void handle(PingTimeout event) {
-            for (NatedAddress peerNodeAddress : bootstrapNodes) {
-                log.info("{} sending ping to PeerNode:{}", new Object[]{selfAddress.getId(), peerNodeAddress});
-                trigger(new NetPing(selfAddress, peerNodeAddress), network);
+            List<NatedAddress> randomPeers = selectPeers(bootstrapNodes, 1);
+            for (NatedAddress randomPeer : randomPeers) {
+                log.info("Peer {} sending ping to Random Peer Node:{}", new Object[]{selfAddress.getId(), randomPeer});
+                trigger(new NetPing(selfAddress, randomPeer), network);
             }
         }
 
