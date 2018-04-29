@@ -26,7 +26,10 @@ import java.util.List;
 import java.util.Set;
 import org.javatuples.Pair;
 import org.junit.Assert;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import se.kth.swim.HostComp;
+import se.kth.swim.SwimComp;
 import se.kth.swim.croupier.CroupierConfig;
 import se.kth.swim.nat.NatType;
 import se.kth.swim.nat.NatedAddress;
@@ -56,6 +59,8 @@ import se.sics.kompics.simulator.network.impl.UniformRandomModel;
  * @author Alex Ormenisan <aaor@sics.se>
  */
 public class SwimScenario {
+
+  private static final Logger log = LoggerFactory.getLogger(SwimScenario.class);
 
   private static long seed;
   private static InetAddress localHost;
@@ -105,6 +110,9 @@ public class SwimScenario {
           public Init getComponentInit() {
             nodeAddress = getAddress(nodeId, firstId, lastId);
             long nodeSeed = seed + nodeId;
+
+            log.info("StartNodeEvent of peer {} at getComponentInit method bootstrapNodes{} nodeseed:{} croupierConfig{}",
+                    new Object[]{nodeAddress.getId(),bootstrapNodes(nodeId, firstId, lastId),nodeSeed,croupierConfig});
             return new HostComp.HostInit(nodeAddress, bootstrapNodes(nodeId, firstId, lastId), nodeSeed, croupierConfig);
           }
         };
@@ -204,7 +212,7 @@ public class SwimScenario {
 
         StochasticProcess killPeers = new StochasticProcess() {
           {
-            eventInterArrivalTime(constant(5000));
+            eventInterArrivalTime(constant(1000));
             raise(1, killNodeOp, nodeIdConst(5), nodeIdConst(firstId), nodeIdConst(lastId));
           }
         };
