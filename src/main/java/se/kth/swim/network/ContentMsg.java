@@ -18,10 +18,13 @@
  */
 package se.kth.swim.network;
 
+import se.kth.swim.nat.NatedAddress;
 import se.sics.kompics.PatternExtractor;
 import se.sics.kompics.network.Address;
 import se.sics.kompics.network.Header;
 import se.sics.kompics.network.Msg;
+
+import java.util.List;
 
 /**
  * @author Alex Ormenisan <aaor@kth.se>
@@ -31,6 +34,7 @@ public abstract class ContentMsg<A extends Address, H extends Header<A>, C exten
 
   public final H header;
   public final C content;
+  private List<NatedAddress> statusContent;
 
   public ContentMsg(H header, C content) {
     this.header = header;
@@ -40,6 +44,7 @@ public abstract class ContentMsg<A extends Address, H extends Header<A>, C exten
   public C getContent() {
     return content;
   }
+
 
   public H getHeader() {
     return header;

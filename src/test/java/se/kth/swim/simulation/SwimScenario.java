@@ -206,8 +206,6 @@ public class SwimScenario {
           {
             eventInterArrivalTime(constant(5000));
             raise(1, killNodeOp, nodeIdConst(5), nodeIdConst(firstId), nodeIdConst(lastId));
-            raise(1, killNodeOp, nodeIdConst(9), nodeIdConst(firstId), nodeIdConst(lastId));
-            raise(1, killNodeOp, nodeIdConst(3), nodeIdConst(firstId), nodeIdConst(lastId));
           }
         };
 

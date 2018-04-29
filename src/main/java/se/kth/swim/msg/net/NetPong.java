@@ -8,8 +8,8 @@ import se.sics.kompics.network.Header;
 import java.util.List;
 
 public class NetPong extends BasicContentMsg<Pong>{
-    public NetPong(NatedAddress src, NatedAddress dst) {
-        super(src, dst, new Pong());
+    public NetPong(NatedAddress src, NatedAddress dst, List<NatedAddress> localState) {
+        super(src, dst, new Pong(localState));
     }
 
     private NetPong(Header<NatedAddress> header, Pong content) {

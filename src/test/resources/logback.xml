@@ -17,7 +17,7 @@
     </appender> 
 
     
-    <logger name="Kompics" level="INFO"/>
+    <logger name="Kompics" level="WARN"/>
     <logger name="se.sics.kompics.timer.java.JavaTimer" level="INFO"/>
     <logger name="se.kth.id2203" level="DEBUG"/>
 

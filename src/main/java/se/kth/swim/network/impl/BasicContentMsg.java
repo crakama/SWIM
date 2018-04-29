@@ -23,10 +23,14 @@ import se.kth.swim.network.ContentMsg;
 import se.sics.kompics.network.Header;
 import se.sics.kompics.network.Transport;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * @author Alex Ormenisan <aaor@sics.se>
  */
 public class BasicContentMsg<C extends Object> extends ContentMsg<NatedAddress, Header<NatedAddress>, C> {
+
 
   public BasicContentMsg(NatedAddress src, NatedAddress dst, C content) {
     this(new BasicHeader(src, dst, Transport.UDP), content);
@@ -40,9 +44,15 @@ public class BasicContentMsg<C extends Object> extends ContentMsg<NatedAddress, 
     return new BasicContentMsg(header, content);
   }
 
+
   @Override
   public NatedAddress getSource() {
     return header.getSource();
+  }
+
+  @Override
+  public C getContent() {
+    return super.getContent();
   }
 
   @Override

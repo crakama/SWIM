@@ -37,7 +37,8 @@ public class NetPing extends BasicContentMsg<Ping> {
     }
 
     @Override
-    public BasicContentMsg newHeader(Header<NatedAddress> newHeader) {
+    public BasicContentMsg newHeader(Header<NatedAddress> newHeader)
+    {
         return new NetPing(newHeader, getContent());
     }
 

@@ -101,17 +101,21 @@ public class SwimComp extends ComponentDefinition {
             NatedAddress newlyJoinedPeer = event.getHeader().getSource();
             log.info("{} received ping from:{}", new Object[]{selfAddress.getId(),newlyJoinedPeer});
             receivedPings++;
+            trigger(new NetPong(selfAddress,newlyJoinedPeer,localState), network);
             //TODO: Send my local state to newly joined peer
             updateLocalState(newlyJoinedPeer.getId(),newlyJoinedPeer);
             startGossip(newlyJoinedPeer);
         }
     };
 
-    //TODO Schedule Pong and gossip events
+    //TODO: Schedule PONG and GOSSIP events
     private Handler<NetPong> pongHandler = new Handler<NetPong>() {
         @Override
         public void handle(NetPong netPong) {
-            log.info("Peer {} received PONG from:{}", new Object[]{selfAddress.getId(),netPong.getSource()});
+            log.info("Peer {} received PONG from:{} with message: {}",
+                    new Object[]{selfAddress.getId(),netPong.getSource(),netPong.getContent().getPeers()});
+            /*            log.info("Peer {} received PONG from:{} with message: {}",
+                                new Object[]{selfAddress.getId(),netPong.getSource(),netPong.getContent().getPeers()});*/
         }
     };
 
@@ -119,15 +123,15 @@ public class SwimComp extends ComponentDefinition {
         @Override
         public void handle(NetGossip netGossip) {
             log.info("Peer {} received Gossip from:{}", new Object[]{selfAddress.getId(),netGossip.getSource()});
+            startGossip(netGossip.getSource());
         }
     };
 
-    //Send to newly joined node and one old node.
     private void startGossip(NatedAddress newlyJoinedPeer) {
         List<NatedAddress> randomPeers;
-        trigger(new NetPong(selfAddress,newlyJoinedPeer), network);
-        if(localState.stream().count() < 3){
-            randomPeers  = selectPeers(localState, 1);
+        int nodes = Math.toIntExact(localState.stream().count());
+        if(nodes < 3){
+            randomPeers  = selectPeers(localState, nodes);
         }else {
             randomPeers = selectPeers(localState, 3);
         }
@@ -136,29 +140,31 @@ public class SwimComp extends ComponentDefinition {
             if(newlyJoinedPeer.getId() !=  randomPeer.getId()){
                 trigger(new NetGossip(selfAddress, randomPeer), network);
             }
+
         }
     }
 
     private void updateLocalState(Integer peerID, NatedAddress newlyJoinedPeer) {
-        log.info("Peer {} received PING from newly joined Peer :{} of ID:{}", new Object[]{selfAddress, newlyJoinedPeer,peerID});
+        log.info("Peer {} received PING from newly joined Peer :{} of ID:{}",
+                new Object[]{selfAddress, newlyJoinedPeer,peerID});
         this.localState.add(newlyJoinedPeer);
     }
 
-    public static <NateAddress> List<NateAddress> selectRandomPeers(List<NateAddress> list, int n, Random r) {
-        int length = list.size();
+    public static <NateAddress> List<NateAddress> selectRandomPeers(List<NateAddress> peerlist, int nrofRequiredNodes, Random r) {
+        int peerlistLen= peerlist.size();
 
-        if (length < n) return null;
+        if (peerlistLen < nrofRequiredNodes) return null;
 
         //No shuffle
-        for (int i = length - 1; i >= length - n; --i)
+        for (int i = peerlistLen - 1; i >= peerlistLen - nrofRequiredNodes; --i)
         {
-            Collections.swap(list, i , r.nextInt(i + 1));
+            Collections.swap(peerlist, i , r.nextInt(i + 1));
         }
-        return list.subList(length - n, length);
+        return peerlist.subList(peerlistLen - nrofRequiredNodes, peerlistLen);
     }
 
-    public static <NateAddress> List<NateAddress> selectPeers(List<NateAddress> list, int n) {
-        List<NateAddress> peerAddresses = selectRandomPeers(list, n, ThreadLocalRandom.current());
+    public static <NateAddress> List<NateAddress> selectPeers(List<NateAddress> listofpeers, int nrofRequiredNodes) {
+        List<NateAddress> peerAddresses = selectRandomPeers(listofpeers, nrofRequiredNodes, ThreadLocalRandom.current());
         log.info("{} number of peers Randomly Selected :{}", new Object[]{peerAddresses.stream().count(), peerAddresses});
         return peerAddresses;
 

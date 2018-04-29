@@ -17,7 +17,7 @@ public class PongerComp extends ComponentDefinition {
         @Override
         public void handle(Ping ping) {
             log.debug("Got a PING from : ...and now sending a PONG");
-            trigger(new Pong(),pingPongPortNegative);
+            //trigger(new Pong(),pingPongPortNegative);
         }
     };
     //Subscribe Handlers to ports
