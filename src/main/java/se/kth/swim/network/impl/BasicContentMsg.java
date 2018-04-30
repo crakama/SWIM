@@ -18,6 +18,7 @@
  */
 package se.kth.swim.network.impl;
 
+import se.kth.swim.msg.PingRequest;
 import se.kth.swim.nat.NatedAddress;
 import se.kth.swim.network.ContentMsg;
 import se.sics.kompics.network.Header;
@@ -39,6 +40,7 @@ public class BasicContentMsg<C extends Object> extends ContentMsg<NatedAddress, 
   public BasicContentMsg(Header<NatedAddress> header, C content) {
     super(header, content);
   }
+
 
   public BasicContentMsg newHeader(Header<NatedAddress> header) {
     return new BasicContentMsg(header, content);

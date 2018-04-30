@@ -94,7 +94,8 @@ public class SwimScenario {
       @Override
       public StartNodeEvent generate(final Integer nodeId, final Integer firstId, final Integer lastId) {
         return new StartNodeEvent() {
-          private NatedAddress nodeAddress;
+            HostComp.HostInit host;
+            private NatedAddress nodeAddress;
 
           @Override
           public Address getNodeAddress() {
@@ -113,7 +114,7 @@ public class SwimScenario {
 
             log.info("StartNodeEvent of peer {} at getComponentInit method bootstrapNodes{} nodeseed:{} croupierConfig{}",
                     new Object[]{nodeAddress.getId(),bootstrapNodes(nodeId, firstId, lastId),nodeSeed,croupierConfig});
-            return new HostComp.HostInit(nodeAddress, bootstrapNodes(nodeId, firstId, lastId), nodeSeed, croupierConfig);
+              return new HostComp.HostInit(nodeAddress, bootstrapNodes(nodeId, firstId, lastId), nodeSeed, croupierConfig);
           }
         };
       }
@@ -128,9 +129,14 @@ public class SwimScenario {
 
           @Override
           public Address getNodeAddress() {
+              log.info("KillNodeEvent of peer {} at getComponentInit method bootstrapNodes{} firstId:{} lastId{}",
+                      new Object[]{nodeId,bootstrapNodes(nodeId, firstId, lastId),firstId,lastId});
             return getAddress(nodeId, firstId, lastId);
           }
+
+
         };
+
       }
 
     };
@@ -301,7 +307,7 @@ public class SwimScenario {
   }
 
   static NatedAddress getAddress(int nodeId, int firstId, int lastId) {
-    Kompics.logger.info("{},{},{}", new Object[]{nodeId, firstId, lastId});
+      log.info("{},{},{}", new Object[]{nodeId, firstId, lastId});
     BasicAddress baseAdr = new BasicAddress(localHost, 12345, nodeId);
     if (nodeId % 2 == 0) {
       //open address

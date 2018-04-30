@@ -46,15 +46,8 @@ public class BootstrapComp extends ComponentDefinition {
   public BootstrapComp(BootStrapInit init) {
     this.selfAddress = init.selfAddress;
     log.info("{} initiating...", new Object[]{selfAddress.getId()});
-/*      Component pingercomp = create(PingerComp.class, Init.NONE);
-      Component pongercomp = create(PongerComp.class, Init.NONE);*/
-
     subscribe(handleStart, control);
     subscribe(handleStop, control);
-/*
-      {
-          connect(pingercomp.getNegative(PingPongPort.class),pongercomp.getPositive(PingPongPort.class));
-      }*/
   }
 
   Handler<Start> handleStart = new Handler<Start>() {
@@ -73,14 +66,6 @@ public class BootstrapComp extends ComponentDefinition {
     }
   };
 
-/*  Handler<CroupierJoin> croupierJoinHandler = new Handler<CroupierJoin>() {
-    @Override
-    public void handle(CroupierJoin croupierJoin) {
-      for(NatedAddress peer : croupierJoin.getPeers()){
-          peers.put(peer.getId(),peer.getBaseAdr());
-      }
-    }
-};*/
 
   public static class BootStrapInit extends Init<BootstrapComp> {
 
