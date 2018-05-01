@@ -1,6 +1,7 @@
-#SWIM
 
-####Scalable Weakly Consistent Infection Style Process Group Membership Protocol
+# SWIM
+
+#### Scalable Weakly Consistent Infection Style Process Group Membership Protocol
 
 ##### Membership Discovery:
 - A new peer randomly selects another peer and sends it a _`PING`_ event.
@@ -12,4 +13,10 @@ with a PONG message which consists of local view of the sending peer, the view i
 - If peer does not respond to _`PING`_ events(If _`PONG`_ not receive after a predefined timeout)
 declare peer as a dead node and disseminate the death information through gossip - select random peers and send them death event.
 
-##### SWIM Failure Detector - Using _`Suspect Sub-Protocol`_ :
+##### Message Ordering :
+
+
+##### K-InDirect Pings :
+
+
+##### Limiting the information exchanged :
