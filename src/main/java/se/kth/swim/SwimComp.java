@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import se.kth.swim.msg.net.NetDeclareDead;
 import se.kth.swim.msg.net.NetPingRequest;
 import se.kth.swim.msg.net.NetPing;
 import se.kth.swim.msg.net.NetPong;
@@ -49,8 +50,6 @@ public class SwimComp extends ComponentDefinition {
     private final NatedAddress selfAddress;
     private final List<NatedAddress> bootstrapNodes;
     private Map<Integer, NatedAddress> localState = new TreeMap<>();
-    //private List<NatedAddress> nonPingablePeers = new ArrayList<>();
-    private Map<Integer, NatedAddress> acknowledgements = new TreeMap<Integer, NatedAddress>();
     private UUID pingTimeoutId;
     private UUID pongTimeoutId;
 
@@ -66,6 +65,7 @@ public class SwimComp extends ComponentDefinition {
         subscribe(handlePing, network);
         subscribe(pongHandler, network);
         subscribe(pingRequestHandler, network);
+        subscribe(declareDeadHandler,network);
         subscribe(handlePingTimeout, timer);
         subscribe(pongTimeoutHandler, timer);
     }
@@ -138,13 +138,29 @@ public class SwimComp extends ComponentDefinition {
         @Override
         public void handle(PongTimeout event) {
             List<NatedAddress> localview = getLocalState(localState);
-            log.info("Peer {} received PongTimeout for Peer {} localview: {} localstate:{}",
-                    new Object[]{selfAddress.getId(),event.getPeerSuspect(),localview, localState});
+            log.info("Peer {} received PongTimeout for Peer {} localview: {} ",
+                    new Object[]{selfAddress.getId(),event.getDeadPeer(),localview, localState});
             List<NatedAddress> randomPeers = selectPeers(localview,3);
             if(randomPeers != null){
                 UUID timeoutId = event.getTimeoutId();
                 for(NatedAddress randompeer: randomPeers){
-                    trigger(new NetPingRequest(selfAddress,randompeer,event.getPeerSuspect()),network);
+                    trigger(new NetDeclareDead(selfAddress,randompeer,event.getDeadPeer()),network);
+                }
+
+            }
+        }
+    };
+
+    private Handler<NetDeclareDead> declareDeadHandler = new Handler<NetDeclareDead>() {
+        @Override
+        public void handle(NetDeclareDead netDeclareDead) {
+            log.info("Peer {} Received Gossip from Peer {} about a Dead Peer :{}",
+                    new Object[]{selfAddress.getId(), netDeclareDead.getSource(),netDeclareDead.getContent().getPeerDeclaredDead()});
+            List<NatedAddress> localview = getLocalState(localState);
+            List<NatedAddress> randomPeers = selectPeers(localview,1);
+            if(randomPeers != null){
+                for(NatedAddress randompeer: randomPeers){
+                    trigger(new NetDeclareDead(selfAddress,randompeer,netDeclareDead.getContent().getPeerDeclaredDead()),network);
                 }
 
             }
@@ -221,14 +237,14 @@ public class SwimComp extends ComponentDefinition {
     }
 
     private class PongTimeout extends Timeout{
-        private NatedAddress peerSuspect;
+        private NatedAddress deadPeer;
         public PongTimeout(SchedulePeriodicTimeout schedulePeriodicTimeout, NatedAddress randomPeer) {
             super(schedulePeriodicTimeout);
-            peerSuspect = randomPeer;
+            deadPeer = randomPeer;
 
         }
-        public NatedAddress getPeerSuspect(){
-            return peerSuspect;
+        public NatedAddress getDeadPeer(){
+            return deadPeer;
         }
     }
 }
