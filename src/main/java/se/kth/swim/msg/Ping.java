@@ -21,10 +21,21 @@ package se.kth.swim.msg;
 
 import se.sics.kompics.KompicsEvent;
 
+import java.util.UUID;
+
 /**
  * @author Alex Ormenisan <aaor@sics.se>
  */
 public class Ping implements KompicsEvent {
+    private UUID pingTimeoutId;
 
     public Ping(){ }
+
+    public Ping(UUID pingTimeoutId) {
+        this.pingTimeoutId = pingTimeoutId;
+    }
+
+    public UUID getPingTimeoutId() {
+        return pingTimeoutId;
+    }
 }
