@@ -5,6 +5,7 @@ import se.kth.swim.nat.NatedAddress;
 import se.kth.swim.network.impl.BasicContentMsg;
 import se.sics.kompics.network.Header;
 
+//
 public class NetPingRequest extends BasicContentMsg<PingRequest> {
     public NetPingRequest(NatedAddress src, NatedAddress dst, NatedAddress pingReq) {
         super(src, dst,new PingRequest(pingReq));

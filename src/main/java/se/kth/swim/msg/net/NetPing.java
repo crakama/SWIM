@@ -23,13 +23,19 @@ import se.kth.swim.nat.NatedAddress;
 import se.kth.swim.network.impl.BasicContentMsg;
 import se.sics.kompics.network.Header;
 
+import java.util.UUID;
+
 /**
  * @author Alex Ormenisan <aaor@sics.se>
+ *
+ *  new Ping(pingTimeoutId), PING Bbject wrapped with UUID parameter, which can be accessd by other components that want to
+ *  use it and have registered for PING events.
+ *
  */
 public class NetPing extends BasicContentMsg<Ping> {
 
-    public NetPing(NatedAddress src, NatedAddress dst) {
-        super(src, dst, new Ping());
+    public NetPing(NatedAddress src, NatedAddress dst, UUID pingTimeoutId) {
+        super(src, dst, new Ping(pingTimeoutId));
     }
 
     private NetPing(Header<NatedAddress> header, Ping content) {
