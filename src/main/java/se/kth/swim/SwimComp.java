@@ -109,7 +109,8 @@ public class SwimComp extends ComponentDefinition {
         @Override
         public void handle(NetPong netPongEvent) {
             if( netPongEvent.getContent().getPongTimeoutId() != null )
-                cancelMsgRTTTimeout(netPongEvent.getContent().getPongTimeoutId());
+                cancelMsgRTTTimeout(netPongEvent.getContent().getPongTimeoutId(),netPongEvent.getSource());
+
             updateLocalState(netPongEvent.getSource().getId(),netPongEvent.getSource());
             log.info("Peer {} Received PONG from Peer :{}", new Object[]{selfAddress.getId(), netPongEvent.getSource()});
         }
@@ -125,13 +126,11 @@ public class SwimComp extends ComponentDefinition {
     private Handler<PingTimeout> handlePingTimeout = new Handler<PingTimeout>() {
         @Override
         public void handle(PingTimeout event) {
-            List<NatedAddress> randomPeers = selectPeers(bootstrapNodes, 1);
-            for (NatedAddress randomPeer : randomPeers) {
+            NatedAddress randomPeer = selectPeers(bootstrapNodes, 1);
                 log.info("Peer {} sending PING to Random Peer :{}", new Object[]{selfAddress.getId(), randomPeer});
                 pingTimeoutId = event.getTimeoutId();
                 trigger(new NetPing(selfAddress, randomPeer,pingTimeoutId), network);
                 scheduleMsgRTTTimeout(randomPeer);
-            }
         }
     };
     private Handler<PongTimeout> pongTimeoutHandler = new Handler<PongTimeout>() {
@@ -140,12 +139,10 @@ public class SwimComp extends ComponentDefinition {
             List<NatedAddress> localview = getLocalState(localState);
             log.info("Peer {} received PongTimeout for Peer {} localview: {} ",
                     new Object[]{selfAddress.getId(),event.getDeadPeer(),localview, localState});
-            List<NatedAddress> randomPeers = selectPeers(localview,3);
-            if(randomPeers != null){
-                UUID timeoutId = event.getTimeoutId();
-                for(NatedAddress randompeer: randomPeers){
+            NatedAddress randompeer = selectPeers(localview,1);
+            if(randompeer != null){
+                    if(randompeer != event.getDeadPeer())
                     trigger(new NetDeclareDead(selfAddress,randompeer,event.getDeadPeer()),network);
-                }
 
             }
         }
@@ -157,11 +154,9 @@ public class SwimComp extends ComponentDefinition {
             log.info("Peer {} Received Gossip from Peer {} about a Dead Peer :{}",
                     new Object[]{selfAddress.getId(), netDeclareDead.getSource(),netDeclareDead.getContent().getPeerDeclaredDead()});
             List<NatedAddress> localview = getLocalState(localState);
-            List<NatedAddress> randomPeers = selectPeers(localview,1);
-            if(randomPeers != null){
-                for(NatedAddress randompeer: randomPeers){
+            NatedAddress randompeer = selectPeers(localview,1);
+            if(randompeer != null){
                     trigger(new NetDeclareDead(selfAddress,randompeer,netDeclareDead.getContent().getPeerDeclaredDead()),network);
-                }
 
             }
         }
@@ -171,17 +166,22 @@ public class SwimComp extends ComponentDefinition {
     private void updateLocalState(Integer peerID, NatedAddress newlyJoinedPeer) {
         this.localState.put(peerID,newlyJoinedPeer);
     }
-    //********************************** Select Random Peers **************************************************//
+    //-------------------------------------------------- Select Random Peers -------------------------------------------//
 
-    public static List<NatedAddress> selectRandomPeers(List<NatedAddress> peerlist, int nrofRequiredNodes, Random r) {
+    public static NatedAddress selectRandomPeers(List<NatedAddress> peerlist, int nrofRequiredNodes, Random r) {
+        NatedAddress peer = null;
         int peerlistLen= peerlist.size();
         if (peerlistLen < nrofRequiredNodes) return null;//TODO: Handle Null Pointer exception where this method is triggered
         for (int i = peerlistLen - 1; i >= peerlistLen - nrofRequiredNodes; --i)
         { Collections.swap(peerlist, i , r.nextInt(i + 1)); }
-        return peerlist.subList(peerlistLen - nrofRequiredNodes, peerlistLen);
+        List<NatedAddress> list = peerlist.subList(peerlistLen - nrofRequiredNodes, peerlistLen);
+        for(NatedAddress randompeer: list){
+           peer = randompeer;
+        }
+        return peer;
     }
-    public static List<NatedAddress> selectPeers(List<NatedAddress> listofpeers, int nrofRequiredNodes) {
-        List<NatedAddress> peerAddresses = selectRandomPeers(listofpeers, nrofRequiredNodes, ThreadLocalRandom.current());
+    public static NatedAddress selectPeers(List<NatedAddress> listofpeers, int nrofRequiredNodes) {
+        NatedAddress peerAddresses = selectRandomPeers(listofpeers, nrofRequiredNodes, ThreadLocalRandom.current());
         return peerAddresses;
     }
 
@@ -199,11 +199,11 @@ public class SwimComp extends ComponentDefinition {
         trigger(spt, timer);
     }
     private void scheduleMsgRTTTimeout(NatedAddress randomPeer) {
-        SchedulePeriodicTimeout schedulePeriodicTimeout = new SchedulePeriodicTimeout(15000, 15000);//15 seconds
-        PongTimeout sc = new PongTimeout(schedulePeriodicTimeout,randomPeer);
-        schedulePeriodicTimeout.setTimeoutEvent(sc);
-        //pongTimeoutId = sc.getTimeoutId();
-        trigger(schedulePeriodicTimeout, timer);
+        ScheduleTimeout scheduleTimeout = new ScheduleTimeout(2000);//2 seconds
+        PongTimeout sc = new PongTimeout(scheduleTimeout,randomPeer);
+        scheduleTimeout.setTimeoutEvent(sc);
+        pongTimeoutId = sc.getTimeoutId();
+        trigger(scheduleTimeout, timer);
     }
 
     private void cancelPeriodicPing() {
@@ -211,11 +211,12 @@ public class SwimComp extends ComponentDefinition {
         trigger(cpt, timer);
         pingTimeoutId = null;
     }
+    private void cancelMsgRTTTimeout(UUID timeoutId, NatedAddress source) {
+        if (pongTimeoutId != null) {
+            trigger(new CancelTimeout(pongTimeoutId), timer);
+            pongTimeoutId = null;
+        }
 
-    private void cancelMsgRTTTimeout(UUID pongTimeout) {
-        CancelTimeout cpt = new CancelTimeout(pongTimeout);
-        trigger(cpt, timer);
-        //pongTimeoutId = null;
     }
 
     public static class SwimInit extends Init<SwimComp> {
@@ -238,7 +239,7 @@ public class SwimComp extends ComponentDefinition {
 
     private class PongTimeout extends Timeout{
         private NatedAddress deadPeer;
-        public PongTimeout(SchedulePeriodicTimeout schedulePeriodicTimeout, NatedAddress randomPeer) {
+        public PongTimeout(ScheduleTimeout schedulePeriodicTimeout, NatedAddress randomPeer) {
             super(schedulePeriodicTimeout);
             deadPeer = randomPeer;
 
