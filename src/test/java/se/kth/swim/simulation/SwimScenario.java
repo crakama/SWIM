@@ -196,7 +196,7 @@ public class SwimScenario {
         deadLinks.add(Pair.with(id(7), id(1)));
 
         //Make sure disconnected nodes reflect your nodes in the system
-        disconnectedNodes.add(id(3));
+        disconnectedNodes.add(id(5));
 
         final int nrNodes = 10;
         final int firstId = 1;
@@ -215,6 +215,12 @@ public class SwimScenario {
             raise(nrNodes, startNodeOp, new BasicIntSequentialDistribution(1), nodeIdConst(firstId), nodeIdConst(lastId));
           }
         };
+          StochasticProcess startDeadPeers = new StochasticProcess() {
+              {
+                  eventInterArrivalTime(constant(1000));
+                  raise(1, startNodeOp, nodeIdConst(5), nodeIdConst(firstId), nodeIdConst(lastId));
+              }
+          };
 
         StochasticProcess killPeers = new StochasticProcess() {
           {
@@ -240,6 +246,7 @@ public class SwimScenario {
         setupSystem.start();
         startPeers.startAfterTerminationOf(10, setupSystem);
         killPeers.startAfterTerminationOf(10000, startPeers);
+        startDeadPeers.startAfterTerminationOf(15000, killPeers);
 //                deadLinks1.startAfterTerminationOf(10000,startPeers);
 //                disconnectedNodes1.startAfterTerminationOf(10000, startPeers);
         terminateAt(60 * 1000 * 1000);
