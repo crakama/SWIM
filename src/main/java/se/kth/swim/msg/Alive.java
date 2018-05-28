@@ -3,12 +3,12 @@ package se.kth.swim.msg;
 import se.kth.swim.nat.NatedAddress;
 import se.sics.kompics.KompicsEvent;
 
-public class DeclareDead implements KompicsEvent {
+public class Alive implements KompicsEvent {
     private NatedAddress peerDeclaredDead;
-    public DeclareDead(NatedAddress peer){
+    public Alive(NatedAddress peer){
         this.peerDeclaredDead=peer;
     }
-    public NatedAddress getPeerDeclaredDead() {
+    public NatedAddress getAlivePeer() {
         return peerDeclaredDead;
     }
 }
