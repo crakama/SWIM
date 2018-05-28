@@ -244,7 +244,7 @@ public class SwimScenario {
         setupSystem.start();
         startPeers.startAfterTerminationOf(10, setupSystem);
         killPeers.startAfterTerminationOf(10000, startPeers);
-        startDeadPeers.startAfterTerminationOf(15000, killPeers);
+        startDeadPeers.startAfterTerminationOf(5000, killPeers);
 //                deadLinks1.startAfterTerminationOf(10000,startPeers);
 //                disconnectedNodes1.startAfterTerminationOf(10000, startPeers);
         terminateAt(60 * 1000 * 1000);

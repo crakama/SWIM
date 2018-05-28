@@ -24,6 +24,8 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import se.kth.swim.msg.Status;
+import se.kth.swim.msg.StatusType;
 import se.kth.swim.msg.net.*;
 import se.kth.swim.nat.NatedAddress;
 import se.sics.kompics.ComponentDefinition;
@@ -46,13 +48,13 @@ public class SwimComp extends ComponentDefinition {
     private Positive<Timer> timer = requires(Timer.class);
     private final NatedAddress selfAddress;
     private final List<NatedAddress> bootstrapNodes;
-    private Map<Integer, NatedAddress> localStateNodes = new TreeMap<>();
+    private Map<Integer,Status> localStateNodes = new TreeMap<>();
     private Map<Integer,UUID> suspectedNodes = new TreeMap<>();
-
+    private Map<Integer, Status> updateLocalview = new TreeMap<>();
     private UUID pingTimeoutId;
     private UUID pongTimeoutId;
-
     private int receivedPings = 0;
+    private long localClock = 0;
 
     public SwimComp(SwimInit init) {
         this.selfAddress = init.selfAddress;
@@ -62,9 +64,6 @@ public class SwimComp extends ComponentDefinition {
         subscribe(handleStop, control);
         subscribe(handlePing, network);
         subscribe(pongHandler, network);
-        subscribe(declareDeadHandler,network);
-        subscribe(suspectHandler,network);
-        subscribe(netAliveHandler,network);
         subscribe(suspectTimeoutHandler,timer);
         subscribe(handlePingTimeout, timer);
         subscribe(pongTimeoutHandler, timer);
@@ -109,143 +108,119 @@ public class SwimComp extends ComponentDefinition {
     private Handler<NetPing> handlePing = new Handler<NetPing>() {
 
         @Override
-        public void handle(NetPing event) {
-            NatedAddress pingerPeer = event.getHeader().getSource();
+        public void handle(NetPing netPingEvent) {
+            NatedAddress sourcePeer = netPingEvent.getHeader().getSource();
             receivedPings++;
-            localStateNodes.put(pingerPeer.getId(),pingerPeer);
-            trigger(new NetPong(selfAddress,pingerPeer,event.getContent().getPingTimeoutId(),localStateNodes),network);
+            localStateNodes.put(sourcePeer.getId(),new Status(StatusType.ALIVE ,localClock,sourcePeer,selfAddress));
+            updateLocalState(netPingEvent.getContent().getViewUpdate());
+            trigger(new NetPong(selfAddress,sourcePeer,netPingEvent.getContent().getPingTimeoutId(),localStateNodes),network);
         }
     };
-
-    //TODO: Schedule PONG and GOSSIP events
     private Handler<NetPong> pongHandler = new Handler<NetPong>() {
         @Override
         public void handle(NetPong netPongEvent) {
             if( netPongEvent.getContent().getPongTimeoutId() != null )
                 cancelPongTimeout(netPongEvent.getContent().getPongTimeoutId(),netPongEvent.getSource());
-            Map<Integer, NatedAddress> peers = netPongEvent.getContent().getPeers();
-            updateLocalState(netPongEvent.getSource().getId(),netPongEvent.getSource(),peers);
-            log.info("Peer {} Received PONG from Peer :{} with localview {} ", new Object[]{selfAddress.getId(), netPongEvent.getSource(),peers});
+            updateLocalview.clear();
+            updateLocalview = netPongEvent.getContent().getViewUpdate();
+            localStateNodes.put(netPongEvent.getSource().getId(),
+                    new Status(StatusType.ALIVE,localClock,netPongEvent.getSource(),selfAddress));
+            updateLocalState(updateLocalview);
+            Status status = updateLocalview.get(netPongEvent.getSource().getId());
+            if( status != null )
+                log.info("Peer {} Received PONG from Peer :{} with Status {} ",
+                    new Object[]{selfAddress.getId(), netPongEvent.getSource(), status.getStatusType()});
         }
     };
 
     private Handler<PingTimeout> handlePingTimeout = new Handler<PingTimeout>() {
         @Override
         public void handle(PingTimeout event) {
-            NatedAddress randomPeer = selectPeers(bootstrapNodes, 1);
-            log.info("Peer {} sending PING to Random Peer :{}", new Object[]{selfAddress.getId(), randomPeer});
+            NatedAddress randomPeer = selectRandomPeer();
+            localClock++;
+            log.info("Peer {} sending PING to Random Peer :{}", new Object[]{selfAddress.getId(), randomPeer    });
             pingTimeoutId = event.getTimeoutId();
-            localStateNodes.put(randomPeer.getId(),randomPeer);
-            trigger(new NetPing(selfAddress, randomPeer,pingTimeoutId), network);
             schedulePongTimeout(randomPeer);
+            trigger(new NetPing(selfAddress, randomPeer,pingTimeoutId,localStateNodes), network);
+
         }
     };
     private Handler<PongTimeout> pongTimeoutHandler = new Handler<PongTimeout>() {
         @Override
-        public void handle(PongTimeout event) {
-            List<NatedAddress> localview = getLocalState(localStateNodes);
-            log.info("Peer {} received PongTimeout for Peer {} localview: {} localStateNodes {}",
-                    new Object[]{selfAddress.getId(),event.getSuspectedPeer(),localview, localStateNodes});
-            NatedAddress randompeer = selectPeers(localview,1);
-            if(randompeer != null){
-                trigger(new NetSuspect(selfAddress,randompeer,event.getSuspectedPeer()),network);
-            }
+        public void handle(PongTimeout pongTimeoutEvent) {
+            updateLocalview.clear();
+            updateLocalview.put(pongTimeoutEvent.getSuspectedPeer().getId(),
+                    new Status(StatusType.SUSPECTED,localClock,pongTimeoutEvent.getSuspectedPeer(),selfAddress));
+            Status status = updateLocalview.get(pongTimeoutEvent.getSuspectedPeer().getId());
+            if( status != null )
+                log.info("Peer {} received PongTimeout for Peer {} and has Marked it as {}",
+                        new Object[]{selfAddress.getId(),pongTimeoutEvent.getSuspectedPeer(),status.getStatusType()});
+            updateLocalState(updateLocalview);
         }
     };
-    private Handler<NetSuspect> suspectHandler = new Handler<NetSuspect>() {
-        @Override
-        public void handle(NetSuspect netSuspectEvent) {
-            NatedAddress suspect = netSuspectEvent.getContent().getSuspectedPeer();
-            log.info("Peer {} Received Gossip from Peer {} about a Suspected Peer :{}",
-                    new Object[]{selfAddress.getId(), netSuspectEvent.getSource(), suspect});
-            if(suspect == selfAddress){
-                trigger(new NetAlive(selfAddress,netSuspectEvent.getSource(),selfAddress),network);
-            }else if(!(findPeer(suspect))){
-                scheduleSuspectTimeout(suspect);
-            }
-
-        }
-    };
-    private boolean findPeer(NatedAddress peer){
-        boolean available = false;
-        for(Integer key : suspectedNodes.keySet()){
-            if(key.equals(peer.getId())){
-                available= true;
-            }
-        }
-
-        return available;
-    }
+    //TODO Replace check of (status != null) with
     private Handler<SuspectTimeout> suspectTimeoutHandler = new Handler<SuspectTimeout>() {
         @Override
         public void handle(SuspectTimeout suspectTimeoutEvent) {
-            List<NatedAddress> localview = getLocalState(localStateNodes);
-            log.info("Peer {} received SuspectTimeout for Peer {} localview: {} localStateNodes {}",
-                    new Object[]{selfAddress.getId(),suspectTimeoutEvent.getDeadPeer(),localview, localStateNodes});
-            NatedAddress randompeer = selectPeers(localview,1);
-            if(randompeer != null){
-                trigger(new NetDead(selfAddress,randompeer, suspectTimeoutEvent.getDeadPeer()),network);
-            }
+            updateLocalview.clear();
+            updateLocalview.put(suspectTimeoutEvent.getDeadPeer().getId(),
+                    new Status(StatusType.DEAD,localClock,suspectTimeoutEvent.getDeadPeer(),selfAddress));
+            Status status = updateLocalview.get(suspectTimeoutEvent.getDeadPeer().getId());
+            if( status != null )
+            log.info("Peer {} received SuspectTimeout for Peer {} and Marked it as {}",
+                    new Object[]{selfAddress.getId(),suspectTimeoutEvent.getDeadPeer(),status.getStatusType()});
+            updateLocalState(updateLocalview);
         }
     };
 
-    private Handler<NetAlive> netAliveHandler = new Handler<NetAlive>() {
-        @Override
-        public void handle(NetAlive netAliveEvent) {
-            NatedAddress alivePeer = netAliveEvent.getContent().getAlivePeer();
-            //TODO remove node from suspected treemap using node ID
-            log.info("Peer {} Received Gossip from Peer {} about an Alive Peer :{}",
-                    new Object[]{selfAddress.getId(), netAliveEvent.getSource(), alivePeer});
-            suspectedNodes.remove(alivePeer.getId());
+    private void updateLocalState(Map<Integer,Status> peers) {
+        peers.forEach((key_natAddress, value_status) -> {
+            if (value_status.isSuspected()) {
+                if(value_status.getPeer().getId().equals(selfAddress.getId())){
+                    localStateNodes.put(selfAddress.getId(), new Status(StatusType.ALIVE,localClock,selfAddress,selfAddress));
 
-        }
-    };
-
-    private Handler<NetDead> declareDeadHandler = new Handler<NetDead>() {
-        @Override
-        public void handle(NetDead netDead) {
-            log.info("Peer {} Received Gossip from Peer {} about a Dead Peer :{}",
-                    new Object[]{selfAddress.getId(), netDead.getSource(), netDead.getContent().getDeadPeer()});
-            List<NatedAddress> localview = getLocalState(localStateNodes);
-            NatedAddress randompeer = selectPeers(localview,1);
-            if(randompeer != null){
-
-            }
-        }
-    };
-
-    //TODO: If the pinger is the ramdom list, then send it to all otherwise add pinger then send message
-    //TODO: Peers should send their local views and MERGE with local state
-    private void updateLocalState(Integer peerID, NatedAddress newlyJoinedPeer, Map<Integer, NatedAddress> peers) {
-        log.info("Peer {} Received localview {}  from Peer {} ",
-                new Object[]{selfAddress.getId(), peers, newlyJoinedPeer});
-        peers.forEach((k, v) -> localStateNodes.merge(k, v, (a, b) -> a));
-
+                    //TODO: Cancel periodic timeout ?
+                }else {
+                    log.info(" Peer {} received Gossip from Peer {} about Peer {} of Status {}",
+                            new Object[]{ selfAddress, value_status.getStatusReporter(),
+                                    value_status.getPeer(),value_status.getStatusType()});
+                    scheduleSuspectTimeout(value_status.getPeer());
+                }
+            }//else { }
+            localStateNodes.merge(key_natAddress, value_status, (newStatusValue, oldStatusValue) ->
+                    oldStatusValue.time <= newStatusValue.time ? newStatusValue :oldStatusValue );});//keep new value
     }
     //-------------------------------------- Random Peer Sampling----------------------------------------------------//
     //                                                                                                               //
     //---------------------------------------------------------------------------------------------------------------//
+    public NatedAddress selectRandomPeer() {
+        NatedAddress randomPeer;
+        List<NatedAddress> shuffledList;
+        Random random =new Random();
+        while (true){
+            shuffledList = select(bootstrapNodes, bootstrapNodes.size());
+            randomPeer = shuffledList.get(random.nextInt(shuffledList.size()));
+            if(!randomPeer.equals(selfAddress) || randomPeer != null);
+            break;
+        }
+        return randomPeer;
+    }
 
-    public static NatedAddress selectRandomPeers(List<NatedAddress> peerlist, int nrofRequiredNodes, Random r) {
-        NatedAddress peer = null;
+    private static List<NatedAddress> shuffleandSelect(List<NatedAddress> peerlist, int nrofRequiredNodes, Random r) {
         int peerlistLen= peerlist.size();
-        if (peerlistLen < nrofRequiredNodes) return null;
+        if (peerlistLen < nrofRequiredNodes) return null;//TODO: Handle Null Pointer exception where this method is triggered
         for (int i = peerlistLen - 1; i >= peerlistLen - nrofRequiredNodes; --i)
         { Collections.swap(peerlist, i , r.nextInt(i + 1)); }
-        List<NatedAddress> list = peerlist.subList(peerlistLen - nrofRequiredNodes, peerlistLen);
-        for(NatedAddress randompeer: list){
-            peer = randompeer;
-        }
-        return peer;
+        return peerlist.subList(peerlistLen - nrofRequiredNodes, peerlistLen);
     }
-    public static NatedAddress selectPeers(List<NatedAddress> listofpeers, int nrofRequiredNodes) {
-        NatedAddress peerAddresses = selectRandomPeers(listofpeers, nrofRequiredNodes, ThreadLocalRandom.current());
+    public static List<NatedAddress> select(List<NatedAddress> listofpeers, int nrofRequiredNodes) {
+        List<NatedAddress> peerAddresses = shuffleandSelect(listofpeers, nrofRequiredNodes, ThreadLocalRandom.current());
         return peerAddresses;
     }
 
 
-    private List<NatedAddress> getLocalState(Map<Integer, NatedAddress> state){
-        List<NatedAddress> localpeerlist = state.values().stream().collect(Collectors.toList());
+    private List<Status> getLocalState(Map<Integer, Status> state){
+        List<Status> localpeerlist = state.values().stream().collect(Collectors.toList());
         return localpeerlist;
     }
     //-------------------------------------- Timeout Schedulers------------------------------------------------------//
@@ -269,7 +244,6 @@ public class SwimComp extends ComponentDefinition {
         ScheduleTimeout scheduleTimeout = new ScheduleTimeout(10000);
         SuspectTimeout sc = new SuspectTimeout(scheduleTimeout,suspectedPeer);
         scheduleTimeout.setTimeoutEvent(sc);
-        suspectedNodes.put(suspectedPeer.getId(),sc.getTimeoutId());
         trigger(scheduleTimeout, timer);
     }
 
