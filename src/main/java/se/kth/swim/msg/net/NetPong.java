@@ -1,6 +1,7 @@
 package se.kth.swim.msg.net;
 
 import se.kth.swim.msg.Pong;
+import se.kth.swim.msg.Status;
 import se.kth.swim.nat.NatedAddress;
 import se.kth.swim.network.impl.BasicContentMsg;
 import se.sics.kompics.network.Header;
@@ -10,7 +11,7 @@ import java.util.Map;
 import java.util.UUID;
 
 public class NetPong extends BasicContentMsg<Pong>{
-    public NetPong(NatedAddress src, NatedAddress dst, UUID pingTimeoutId, Map<Integer, NatedAddress> localState) {
+    public NetPong(NatedAddress src, NatedAddress dst, UUID pingTimeoutId, Map<Integer, Status> localState) {
         super(src, dst, new Pong(localState,pingTimeoutId));
     }
 

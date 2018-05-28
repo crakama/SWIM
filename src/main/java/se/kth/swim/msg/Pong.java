@@ -8,12 +8,12 @@ import java.util.*;
 public class Pong implements KompicsEvent {
     UUID pongTimeoutId;
     //private List<NatedAddress> peers = new ArrayList<>();
-    private Map<Integer, NatedAddress> peers = new TreeMap<>();
-    public Pong(Map<Integer, NatedAddress> localState, UUID pingTimeoutId){
+    private Map<Integer, Status> peers = new TreeMap<>();
+    public Pong(Map<Integer,Status> localState, UUID pingTimeoutId){
         this.peers.putAll(localState);
         pongTimeoutId = pingTimeoutId;
     }
-    public Map<Integer, NatedAddress> getPeers() {
+    public Map<Integer, Status> getViewUpdate() {
         return peers;
     }
     public UUID getPongTimeoutId(){
