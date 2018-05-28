@@ -19,13 +19,60 @@
 
 package se.kth.swim.msg;
 
+import se.kth.swim.nat.NatedAddress;
+
+import static se.kth.swim.msg.StatusType.ALIVE;
+import static se.kth.swim.msg.StatusType.DEAD;
+import static se.kth.swim.msg.StatusType.SUSPECTED;
+
 /**
  * @author Alex Ormenisan <aaor@sics.se>
  */
 public class Status {
     public int receivedPings;
-    
+
+    private StatusType statusType = null;
+    private NatedAddress statusReporter;
+    public long time;
+    private NatedAddress peer;
+
+    public Status(StatusType s, long ts, NatedAddress statusOwner, NatedAddress statusReporter)
+    {
+        statusType =s;
+        time=ts;
+        this.peer = statusOwner;
+        this.statusReporter = statusReporter;
+    }
     public Status(int receivedPings) {
         this.receivedPings = receivedPings;
+    }
+    public boolean isAlive()
+    {
+        if(statusType.equals(ALIVE))
+            return true;
+        return false;
+    }
+    public NatedAddress getPeer(){
+        return peer;
+    }
+
+    public NatedAddress getStatusReporter() {
+        return statusReporter;
+    }
+
+    public boolean isSuspected() {
+        if(statusType.equals(SUSPECTED))
+            return true;
+        return false;
+    }
+
+    public boolean isDead() {
+        if(statusType.equals(DEAD))
+            return true;
+        return false;
+    }
+
+    public StatusType getStatusType() {
+        return statusType;
     }
 }

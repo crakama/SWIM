@@ -19,10 +19,12 @@
 package se.kth.swim.msg.net;
 
 import se.kth.swim.msg.Ping;
+import se.kth.swim.msg.Status;
 import se.kth.swim.nat.NatedAddress;
 import se.kth.swim.network.impl.BasicContentMsg;
 import se.sics.kompics.network.Header;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -34,8 +36,8 @@ import java.util.UUID;
  */
 public class NetPing extends BasicContentMsg<Ping> {
 
-    public NetPing(NatedAddress src, NatedAddress dst, UUID pingTimeoutId) {
-        super(src, dst, new Ping(pingTimeoutId));
+    public NetPing(NatedAddress src, NatedAddress dst, UUID pingTimeoutId, Map<Integer, Status> localStateNodes) {
+        super(src, dst, new Ping(pingTimeoutId,localStateNodes));
     }
 
     private NetPing(Header<NatedAddress> header, Ping content) {
