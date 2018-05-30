@@ -33,19 +33,24 @@ public class Status {
 
     private StatusType statusType = null;
     private NatedAddress statusReporter;
-    public long time;
+    public int incarnationNo;
     private NatedAddress peer;
 
-    public Status(StatusType s, long ts, NatedAddress statusOwner, NatedAddress statusReporter)
+    public Status(StatusType s, int incarnationNo, NatedAddress statusOwner, NatedAddress statusReporter)
     {
         statusType =s;
-        time=ts;
+        this.incarnationNo=incarnationNo;
         this.peer = statusOwner;
         this.statusReporter = statusReporter;
     }
     public Status(int receivedPings) {
         this.receivedPings = receivedPings;
     }
+
+    public int getIncarnationNo() {
+        return incarnationNo;
+    }
+
     public boolean isAlive()
     {
         if(statusType.equals(ALIVE))
