@@ -17,11 +17,9 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 package se.kth.swim;
-
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import se.kth.swim.msg.Status;
@@ -54,7 +52,7 @@ public class SwimComp extends ComponentDefinition {
     private UUID pingTimeoutId;
     private UUID pongTimeoutId;
     private int receivedPings = 0;
-    private long localClock = 0;
+    private int incarnationNumber;
 
     public SwimComp(SwimInit init) {
         this.selfAddress = init.selfAddress;
@@ -82,8 +80,9 @@ public class SwimComp extends ComponentDefinition {
 
         @Override
         public void handle(Start event) {
-            log.info("{} starting...", new Object[]{selfAddress.getId()});
-
+            log.info("{} At SwimComp Start Handler starting...", new Object[]{selfAddress.getId()});
+            incarnationNumber = 0;
+            localStateNodes.put(selfAddress.getId(),new Status(StatusType.ALIVE,incarnationNumber,selfAddress,selfAddress));
             if (!bootstrapNodes.isEmpty()) {
                 schedulePeriodicPing();
             }
@@ -106,12 +105,11 @@ public class SwimComp extends ComponentDefinition {
     //---------------------------------------------------------------------------------------------------------------//
 
     private Handler<NetPing> handlePing = new Handler<NetPing>() {
-
         @Override
         public void handle(NetPing netPingEvent) {
             NatedAddress sourcePeer = netPingEvent.getHeader().getSource();
             receivedPings++;
-            localStateNodes.put(sourcePeer.getId(),new Status(StatusType.ALIVE ,localClock,sourcePeer,selfAddress));
+            log.info("Peer {} Received PING to from Peer :{}", new Object[]{selfAddress.getId(), sourcePeer    });
             updateLocalState(netPingEvent.getContent().getViewUpdate());
             trigger(new NetPong(selfAddress,sourcePeer,netPingEvent.getContent().getPingTimeoutId(),localStateNodes),network);
         }
@@ -122,14 +120,17 @@ public class SwimComp extends ComponentDefinition {
             if( netPongEvent.getContent().getPongTimeoutId() != null )
                 cancelPongTimeout(netPongEvent.getContent().getPongTimeoutId(),netPongEvent.getSource());
             updateLocalview.clear();
-            updateLocalview = netPongEvent.getContent().getViewUpdate();
-            localStateNodes.put(netPongEvent.getSource().getId(),
-                    new Status(StatusType.ALIVE,localClock,netPongEvent.getSource(),selfAddress));
-            updateLocalState(updateLocalview);
+            updateLocalview.putAll(netPongEvent.getContent().getViewUpdate());
             Status status = updateLocalview.get(netPongEvent.getSource().getId());
-            if( status != null )
-                log.info("Peer {} Received PONG from Peer :{} with Status {} ",
-                    new Object[]{selfAddress.getId(), netPongEvent.getSource(), status.getStatusType()});
+            updateLocalState(updateLocalview);
+            log.info("Peer {} Received PONG from Peer :{} of Status {} currentlocalview {} originalView {}",
+                    new Object[]{selfAddress.getId(),netPongEvent.getSource(), status,  updateLocalview.keySet(),netPongEvent.getContent().getViewUpdate().keySet()  });
+//            for (Integer key : localStateNodes.keySet()) {
+//                Status st = localStateNodes.get(key);
+//                log.info("Peer {} has Status {}",
+//                        new Object[]{key, st.getStatusType() });
+//            }
+
         }
     };
 
@@ -137,12 +138,10 @@ public class SwimComp extends ComponentDefinition {
         @Override
         public void handle(PingTimeout event) {
             NatedAddress randomPeer = selectRandomPeer();
-            localClock++;
             log.info("Peer {} sending PING to Random Peer :{}", new Object[]{selfAddress.getId(), randomPeer    });
             pingTimeoutId = event.getTimeoutId();
             schedulePongTimeout(randomPeer);
             trigger(new NetPing(selfAddress, randomPeer,pingTimeoutId,localStateNodes), network);
-
         }
     };
     private Handler<PongTimeout> pongTimeoutHandler = new Handler<PongTimeout>() {
@@ -150,11 +149,11 @@ public class SwimComp extends ComponentDefinition {
         public void handle(PongTimeout pongTimeoutEvent) {
             updateLocalview.clear();
             updateLocalview.put(pongTimeoutEvent.getSuspectedPeer().getId(),
-                    new Status(StatusType.SUSPECTED,localClock,pongTimeoutEvent.getSuspectedPeer(),selfAddress));
-            Status status = updateLocalview.get(pongTimeoutEvent.getSuspectedPeer().getId());
-            if( status != null )
+                        new Status(StatusType.SUSPECTED,0,pongTimeoutEvent.getSuspectedPeer(),selfAddress));
+            Status foreignStatus = updateLocalview.get(pongTimeoutEvent.getSuspectedPeer().getId());
+            if( foreignStatus != null )
                 log.info("Peer {} received PongTimeout for Peer {} and has Marked it as {}",
-                        new Object[]{selfAddress.getId(),pongTimeoutEvent.getSuspectedPeer(),status.getStatusType()});
+                        new Object[]{selfAddress.getId(),pongTimeoutEvent.getSuspectedPeer(),foreignStatus.getStatusType()});
             updateLocalState(updateLocalview);
         }
     };
@@ -163,33 +162,90 @@ public class SwimComp extends ComponentDefinition {
         @Override
         public void handle(SuspectTimeout suspectTimeoutEvent) {
             updateLocalview.clear();
-            updateLocalview.put(suspectTimeoutEvent.getDeadPeer().getId(),
-                    new Status(StatusType.DEAD,localClock,suspectTimeoutEvent.getDeadPeer(),selfAddress));
+            Status localStatus = localStateNodes.get(suspectTimeoutEvent.getDeadPeer().getId());
+            if(localStatus != null){
+
+                updateLocalview.put(suspectTimeoutEvent.getDeadPeer().getId(),
+                        new Status(StatusType.DEAD,localStatus.getIncarnationNo(),suspectTimeoutEvent.getDeadPeer(),selfAddress));
+            }
             Status status = updateLocalview.get(suspectTimeoutEvent.getDeadPeer().getId());
             if( status != null )
-            log.info("Peer {} received SuspectTimeout for Peer {} and Marked it as {}",
-                    new Object[]{selfAddress.getId(),suspectTimeoutEvent.getDeadPeer(),status.getStatusType()});
+                log.info("Peer {} received SuspectTimeout for Peer {} and Marked it as {}",
+                        new Object[]{selfAddress.getId(),suspectTimeoutEvent.getDeadPeer(),status.getStatusType()});
             updateLocalState(updateLocalview);
         }
     };
-
+    //Twisted logic -> old value refers to newly received and newValue is one currently stored in localview
+    //merging by viewing new list  as old and old/local list is new
     private void updateLocalState(Map<Integer,Status> peers) {
-        peers.forEach((key_natAddress, value_status) -> {
-            if (value_status.isSuspected()) {
-                if(value_status.getPeer().getId().equals(selfAddress.getId())){
-                    localStateNodes.put(selfAddress.getId(), new Status(StatusType.ALIVE,localClock,selfAddress,selfAddress));
+        peers.forEach((key_natAddress, value_status) ->{
+            Status st = localStateNodes.get(key_natAddress);
+            if(st == null) {
+                log.info("Peer {} Received  Peer {} at forEach with FOREIGN status {} LOCAL status {}",
+                        new Object[]{selfAddress,key_natAddress, value_status.getStatusType(), "NULL PEER"});
+            }else log.info("Peer {} Received  Peer {} at forEach with FOREIGN status {} LOCAL status {}",
+                    new Object[]{selfAddress,key_natAddress,value_status.getStatusType(), st.getStatusType()});
 
-                    //TODO: Cancel periodic timeout ?
-                }else {
-                    log.info(" Peer {} received Gossip from Peer {} about Peer {} of Status {}",
-                            new Object[]{ selfAddress, value_status.getStatusReporter(),
-                                    value_status.getPeer(),value_status.getStatusType()});
-                    scheduleSuspectTimeout(value_status.getPeer());
-                }
-            }//else { }
-            localStateNodes.merge(key_natAddress, value_status, (newStatusValue, oldStatusValue) ->
-                    oldStatusValue.time <= newStatusValue.time ? newStatusValue :oldStatusValue );});//keep new value
+                localStateNodes.merge(key_natAddress, value_status, (local, incoming) ->
+                        mergeViews(key_natAddress,incoming,local) );});//keep new value
     }
+    private Status mergeViews(Integer key_natAddress, Status incoming, Status local) {
+        Status newStatusValue;
+        log.info("Peer {} received Gossip for Peer {} of incoming {} value_localstatus {}",
+                new Object[]{selfAddress.getId(),incoming.getPeer(),incoming.getStatusType(),local.getStatusType()});
+       if((key_natAddress.equals(selfAddress.getId()) && (incoming.isSuspected())) ){
+            incarnationNumber++;
+            newStatusValue = new Status(StatusType.ALIVE,incarnationNumber,selfAddress,selfAddress);
+           log.info("incarnationNumber++ ");
+           //Local Alive
+        }else if( (incoming.isSuspected() && local.isAlive())){
+           if(local.getIncarnationNo()  > incoming.getIncarnationNo() ){
+               log.info("incoming.isSuspected() && local.isAlive() CHOOSE local  {}",new Object[]{local.getStatusType()} );
+               newStatusValue = new Status(local.getStatusType(),local.getIncarnationNo(),local.getPeer(),selfAddress);
+           }else{
+               log.info("incoming.isSuspected() && local.isAlive() CHOOSE Incoming  {}",new Object[]{incoming.getStatusType()} );
+               newStatusValue = new Status(incoming.getStatusType(),incoming.getIncarnationNo(),incoming.getPeer(),selfAddress);
+           }
+
+        }else if((incoming.isAlive() && local.isAlive()) ){
+           if(local.getIncarnationNo()  > incoming.getIncarnationNo() ){
+               log.info("incoming.isAlive() && local.isAlive()  CHOOSE local  {}",new Object[]{local.getStatusType()} );
+               newStatusValue = new Status(local.getStatusType(),local.getIncarnationNo(),local.getPeer(),selfAddress);
+           }else{
+               log.info("incoming.isAlive() && local.isAlive()  CHOOSE Incoming  {}",new Object[]{incoming.getStatusType()} );
+               newStatusValue = new Status(incoming.getStatusType(),incoming.getIncarnationNo(),incoming.getPeer(),selfAddress);
+           }
+       }
+       else if( (incoming.isAlive() && local.isSuspected()) ){
+           if(local.getIncarnationNo()  >= incoming.getIncarnationNo() ){
+               log.info("incoming.isSuspected() && local.isSuspected() CHOOSE local  {}",new Object[]{local.getStatusType()} );
+               newStatusValue = new Status(local.getStatusType(),local.getIncarnationNo(),local.getPeer(),selfAddress);
+           }else{
+               log.info("incoming.isSuspected() && local.isSuspected() CHOOSE Incoming  {}",new Object[]{incoming.getStatusType()} );
+               newStatusValue = new Status(incoming.getStatusType(),incoming.getIncarnationNo(),incoming.getPeer(),selfAddress);
+           }
+
+        }else if( (incoming.isSuspected() && local.isSuspected())){
+           if(local.getIncarnationNo()  > incoming.getIncarnationNo() ){
+               log.info("incoming.isSuspected() && local.isSuspected() CHOOSE local  {}",new Object[]{local.getStatusType()} );
+               newStatusValue = new Status(local.getStatusType(),local.getIncarnationNo(),local.getPeer(),selfAddress);
+           }else{
+               log.info("incoming.isSuspected() && local.isSuspected() CHOOSE Incoming  {}",new Object[]{incoming.getStatusType()} );
+               newStatusValue = new Status(incoming.getStatusType(),incoming.getIncarnationNo(),incoming.getPeer(),selfAddress);
+           }
+
+        }else if(incoming.isDead()){
+           log.info("incoming.isDead() CHOOSE Incoming  {}",new Object[]{incoming.getStatusType()} );
+               newStatusValue = new Status(incoming.getStatusType(),incoming.getIncarnationNo(),incoming.getPeer(),selfAddress);
+
+        }else{
+           log.info("Last Else CHOOSE Incoming  {}",new Object[]{incoming.getStatusType()} );
+           newStatusValue = new Status(incoming.getStatusType(),incoming.getIncarnationNo(),incoming.getPeer(),selfAddress);
+       }
+
+        return newStatusValue;
+    }
+
     //-------------------------------------- Random Peer Sampling----------------------------------------------------//
     //                                                                                                               //
     //---------------------------------------------------------------------------------------------------------------//
