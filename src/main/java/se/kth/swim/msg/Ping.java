@@ -19,7 +19,6 @@
 
 package se.kth.swim.msg;
 
-import se.kth.swim.nat.NatedAddress;
 import se.sics.kompics.KompicsEvent;
 
 import java.util.Map;
@@ -31,17 +30,28 @@ import java.util.UUID;
  */
 public class Ping implements KompicsEvent {
     private UUID pingTimeoutId;
+    private UUID pongTimeoutId;
+    private PingPongType pingPongType;
     private Map<Integer, Status> localViewUpdate = new TreeMap<>();
     public Ping(){ }
 
-    public Ping(UUID pingTimeoutId, Map<Integer, Status> localStateNodes) {
-        this.pingTimeoutId = pingTimeoutId;
+    public Ping(PingPongType pingPongType, UUID pongTimeoutId, Map<Integer, Status> localStateNodes) {
+        this.pingPongType = pingPongType;
+        this.pongTimeoutId =pongTimeoutId;
         localViewUpdate.putAll(localStateNodes);
     }
 
     public UUID getPingTimeoutId() {
         return pingTimeoutId;
     }
+    public UUID getPongTimeoutId() {
+        return pongTimeoutId;
+    }
+
+    public PingPongType getPingPongType() {
+        return pingPongType;
+    }
+
     public Map<Integer, Status> getViewUpdate(){
         return localViewUpdate;
     }
