@@ -56,9 +56,9 @@ import se.sics.kompics.simulator.network.impl.UniformRandomModel;
 /**
  * @author Alex Ormenisan <aaor@sics.se>
  */
-public class SwimScenario {
+public class SwimScenario20Nodes {
 
-    private static final Logger log = LoggerFactory.getLogger(SwimScenario.class);
+    private static final Logger log = LoggerFactory.getLogger(SwimScenario20Nodes.class);
 
     private static long seed;
     private static InetAddress localHost;
@@ -183,7 +183,7 @@ public class SwimScenario {
     //3.BasixIntSequentialDistribution - give it a start int id. It will draw elements and inc the id by 1 on each call.
     //you can implement your own - by extending Distribution
     public static SimulationScenario simpleBoot(final long seed) {
-        SwimScenario.seed = seed;
+        SwimScenario20Nodes.seed = seed;
         SimulationScenario scen = new SimulationScenario() {
             private final Set<Pair<Identifier, Identifier>> deadLinks = new HashSet<>();
             private final Set<Identifier> disconnectedNodes = new HashSet<>();
@@ -194,9 +194,9 @@ public class SwimScenario {
                 deadLinks.add(Pair.with(id(7), id(1)));
 
                 //Make sure disconnected nodes reflect your nodes in the system
-                disconnectedNodes.add(id(9));
+                disconnectedNodes.add(id(5));
 
-                final int nrNodes = 10;
+                final int nrNodes = 20;
                 final int firstId = 1;
                 final int lastId = firstId + (nrNodes - 1);
 
@@ -217,11 +217,6 @@ public class SwimScenario {
                     {
                         eventInterArrivalTime(constant(1000));
                         raise(1, startNodeOp, nodeIdConst(5), nodeIdConst(firstId), nodeIdConst(lastId));
-                        raise(1, startNodeOp, nodeIdConst(10), nodeIdConst(firstId), nodeIdConst(lastId));
-                        raise(1, startNodeOp, nodeIdConst(20), nodeIdConst(firstId), nodeIdConst(lastId));
-                        raise(1, startNodeOp, nodeIdConst(30), nodeIdConst(firstId), nodeIdConst(lastId));
-                        raise(1, startNodeOp, nodeIdConst(40), nodeIdConst(firstId), nodeIdConst(lastId));
-                        raise(1, startNodeOp, nodeIdConst(50), nodeIdConst(firstId), nodeIdConst(lastId));
                     }
                 };
 
@@ -229,12 +224,6 @@ public class SwimScenario {
                     {
                         eventInterArrivalTime(constant(1000));
                         raise(1, killNodeOp, nodeIdConst(5), nodeIdConst(firstId), nodeIdConst(lastId));
-//                        raise(1, killNodeOp, nodeIdConst(10), nodeIdConst(firstId), nodeIdConst(lastId));
-//                        raise(1, killNodeOp, nodeIdConst(20), nodeIdConst(firstId), nodeIdConst(lastId));
-//                        raise(1, killNodeOp, nodeIdConst(30), nodeIdConst(firstId), nodeIdConst(lastId));
-//                        raise(1, killNodeOp, nodeIdConst(40), nodeIdConst(firstId), nodeIdConst(lastId));
-//                        raise(1, killNodeOp, nodeIdConst(50), nodeIdConst(firstId), nodeIdConst(lastId));
-
                     }
                 };
 
@@ -255,10 +244,9 @@ public class SwimScenario {
                 setupSystem.start();
                 startPeers.startAfterTerminationOf(10, setupSystem);
                 killPeers.startAfterTerminationOf(10000, startPeers);
-                //deadLinks1.startAfterTerminationOf(5000,killPeers);
                 //startDeadPeers.startAfterTerminationOf(10000, killPeers);
-                disconnectedNodes1.startAfterTerminationOf(10000, startPeers);
-                //terminateAt(60 * 1000 * 1000);
+//                deadLinks1.startAfterTerminationOf(10000,startPeers);
+//                disconnectedNodes1.startAfterTerminationOf(10000, startPeers);
                 terminateAt(60 * 1000 * 1000);
             }
 

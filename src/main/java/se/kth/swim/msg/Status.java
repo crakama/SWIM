@@ -36,15 +36,13 @@ public class Status {
     public int incarnationNo;
     private NatedAddress peer;
 
-    public Status(StatusType s, int incarnationNo, NatedAddress statusOwner, NatedAddress statusReporter)
-    {
+    public Status(StatusType s, int incarnationNo, NatedAddress statusOwner, NatedAddress statusReporter) {
         statusType =s;
         this.incarnationNo=incarnationNo;
         this.peer = statusOwner;
         this.statusReporter = statusReporter;
-    }
-    public Status(int receivedPings) {
-        this.receivedPings = receivedPings;
+        this.receivedPings = this.receivedPings;
+
     }
 
     public int getIncarnationNo() {
@@ -57,7 +55,7 @@ public class Status {
             return true;
         return false;
     }
-    public NatedAddress getPeer(){
+    public NatedAddress getstatusOwner(){
         return peer;
     }
 
@@ -69,6 +67,10 @@ public class Status {
         if(statusType.equals(SUSPECTED))
             return true;
         return false;
+    }
+
+    public int getReceivedPings() {
+        return receivedPings;
     }
 
     public boolean isDead() {
